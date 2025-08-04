@@ -94,14 +94,18 @@ io.on('connection', (socket) => {
       updateRecentChat(from, to);
       updateRecentChat(to, from); 
   });
-      socket.on('call-user', ({ to, offer }) => {
-      const target = users.get(to);
-      console.log(`📞 Call from ${socket.username} to ${to}`);
-      if (target) {
-        io.to(target).emit('incoming-call', { from: socket.username, offer });
+    socket.on('call-user', ({ to, offer, callType }) => {
+    const target = users.get(to);
+    if (target) {
+      io.to(target).emit('incoming-call', {
+        from: socket.username,
+        offer,
+        callType, // forward this to receiver
+        });
       }
     });
 
+    
     socket.on('answer-call', ({ to, answer }) => {
       const target = users.get(to);
       if (target) {
