@@ -104,6 +104,12 @@ io.on('connection', (socket) => {
         });
       }
     });
+    socket.on('end-call', ({ to }) => {
+      const target = users.get(to);
+      if (target) {
+        io.to(target).emit('call-ended');
+      }
+    });
 
     
     socket.on('answer-call', ({ to, answer }) => {
@@ -134,6 +140,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT,() => {
+server.listen(PORT,'0.0.0.0',() => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });

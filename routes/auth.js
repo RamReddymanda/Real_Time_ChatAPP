@@ -48,8 +48,8 @@ router.post('/verify-otp', async (req, res) => {
 
       res.cookie('token', token, {
         httpOnly: true,
-        sameSite: 'Lax',
-        secure: false,
+        sameSite: 'None',
+        secure: true,
       });
 
       return res.status(200).json({ message: 'OTP verified', token, user });
@@ -61,5 +61,27 @@ router.post('/verify-otp', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+// GET /api/auth/me
+router.get('/me/:id', async (req, res) => {
+
+  // const authHeader = req.headers.authorization;
+  const token = req.params.id;
+  // console.log(req.cookies.token)
+console.log('Token received:', token);
+  if (!token) return res.status(401).json({ error: 'No token provided' });
+
+  try {
+    const decoded = jwt.verify(token, 'secret');
+    const user = await User.findOne({ phone: decoded.phone });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({ user, token });
+  } catch (err) {
+    console.error('Auth check failed:', err);
+    res.status(403).json({ error: 'Invalid token' });
+  }
+});
+
+
 
 module.exports = router;
