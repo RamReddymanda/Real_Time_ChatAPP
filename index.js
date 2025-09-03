@@ -5,11 +5,14 @@ const mongoose = require('mongoose');
 const { Server } = require('socket.io');
 const authRoutes = require('./routes/auth');
 const recentChatsRoutes = require('./routes/recentChats');
+// import keyRoutes from './routes/keyRoutes.js';
+const keyRoutes =require('./routes/keys')
 const Message = require('./models/Message');
 const app = express();
 const server = http.createServer(app);
 const updateRecentChat = require('./middlewares/UpdateRecentChats');
 const dotenv = require('dotenv');
+const { timeStamp } = require('console');
 dotenv.config();
 const io = new Server(server, {
   cors: {
@@ -28,8 +31,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Routes
+app.use('/api/keys', keyRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', recentChatsRoutes);
 app.get('/', (req, res) => {
@@ -48,40 +50,67 @@ const users = new Map(); // username -> socket.id
 // Socket.IO logic
 io.on('connection', (socket) => {
   console.log(`💬 User connected: ${socket.id}`);
-
   socket.on('set-username', (username) => {
     if (!username) return;
-
     // Store mapping
     socket.username = username;
     users.set(username, socket.id);
     console.log(users)
     // Send undelivered messages
-    Message.find({ receiver: username, delivered: false })
+    Message.find({ to: username, delivered: false })
       .then(messages => {
         messages.forEach(msg => {
-          io.to(socket.id).emit('receive-private-message', msg);
+          io.to(socket.id).emit('private-message', {from:msg.from, payload: msg.payload, timestamp: msg.timestamp });
           msg.delivered = true;
           msg.save();
         });
       });
-
-    // console.log(`👤 ${username} is online`);
     io.emit('online-users', Array.from(users));
   });
+  socket.on('typing', ({ to }) => {
+    console.log("tyoing",to,socket.username)
+    const targetSocketId = users.get(to);
 
-  socket.on('send-message', (data) => {
-    console.log(`📩 Broadcast from ${data.from}: ${data.text}`);
-    socket.broadcast.emit('receive-message', data);
+    if (targetSocketId) {
+      console.log("emitting",targetSocketId)
+      io.to(targetSocketId).emit('typing', { from: socket.username });
+    }
   });
 
+  socket.on('stopped-typing', ({ to }) => {
+    const targetSocketId = users.get(to);
+
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('stopped-typing', { from: socket.username });
+    }
+  });
+  // socket.on('send-message', (data) => {
+  //   console.log(`📩 Broadcast from ${data.from}: ${data.text}`);
+
+  //   socket.broadcast.emit('receive-message', data);
+
+  // });
+  socket.on('private-message',async({to,from,timestamp,payload})=>{
+    // const from =socket.username
+    console.log("private msg",to,from,payload)
+    const targetSocketId = users.get(to);
+    if (targetSocketId){
+      io.to(targetSocketId).emit('private-message', {from , payload ,timestamp});
+    }
+    else{
+      const messages = new Message({ from, to,payload, timestamp });
+       await messages.save();
+    }
+    updateRecentChat(from, to);
+     updateRecentChat(to, from); 
+  })
   socket.on('send-private-message', async({ receiver, sender, message, timestamp }) => {
     const from = sender;
     const to = receiver;
     const text = message;
     const time = timestamp;
     const targetSocketId = users.get(receiver);
-   
+   console.log(receiver,message,targetSocketId)
     
     if (targetSocketId) {
       io.to(targetSocketId).emit('receive-private-message', { sender, message, timestamp });

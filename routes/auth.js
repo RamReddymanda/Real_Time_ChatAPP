@@ -40,7 +40,7 @@ router.post('/verify-otp', async (req, res) => {
     const user = await User.findOne({ phone });
 
     if (user && String(user.otp) === String(otp)) {
-      const token = jwt.sign({ phone }, 'secret', { expiresIn: '1h' });
+      const token = jwt.sign({ phone }, 'secret', { expiresIn: '7d'});
 
       user.isVerified = true;
       user.otp = null;
